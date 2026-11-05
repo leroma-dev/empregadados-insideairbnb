@@ -10,6 +10,7 @@ if /I "%~1"=="sync" goto sync
 if /I "%~1"=="lint" goto lint
 if /I "%~1"=="format" goto format
 if /I "%~1"=="test" goto test
+if /I "%~1"=="venv" goto venv
 echo Comando desconhecido: %~1
 goto ajuda
 
@@ -22,6 +23,7 @@ echo   sync       instala as dependencias do pyproject.toml
 echo   lint       ruff check
 echo   format     ruff format
 echo   test       pytest com coverage
+echo   venv       mostra como ativar o .venv neste terminal
 goto fim
 
 :init
@@ -47,6 +49,23 @@ goto fim
 
 :test
 uv run pytest --cov=src --cov-report=term-missing
+goto fim
+
+:venv
+echo Prompt de Comando (cmd):  .venv\Scripts\activate.bat
+echo PowerShell:               .venv\Scripts\Activate.ps1
+echo Para sair:                deactivate
+echo.
+echo Nao e preciso ativar: "uv run" usa o .venv sozinho.
+echo.
+if not exist ".venv\Scripts\activate.bat" (
+    echo Nao encontrei .venv. Rode "scripts\comandos_uv.bat sync" antes.
+    goto fim
+)
+rem Um script nao ativa o cmd que o chamou: abre um novo cmd com o .venv ativo.
+rem 'exit' nesse cmd volta ao terminal anterior.
+echo Abrindo um novo cmd com o .venv ativo (use exit para voltar).
+cmd /k ".venv\Scripts\activate.bat"
 goto fim
 
 :fim
