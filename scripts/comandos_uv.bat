@@ -14,6 +14,8 @@ if /I "%~1"=="venv" goto venv
 if /I "%~1"=="ingestao" goto ingestao
 if /I "%~1"=="staging" goto staging
 if /I "%~1"=="marts" goto marts
+if /I "%~1"=="publicacao" goto publicacao
+if /I "%~1"=="dashboard" goto dashboard
 if /I "%~1"=="ui" goto ui
 if /I "%~1"=="mcp-duckdb" goto mcp_duckdb
 echo Comando desconhecido: %~1
@@ -32,6 +34,8 @@ echo   venv       mostra como ativar o .venv neste terminal
 echo   ingestao   grava as tabelas raw no banco (uv run python -m pipeline.ingestao)
 echo   staging    grava as tabelas staging no banco (uv run python -m pipeline.staging)
 echo   marts      grava as tabelas marts no banco (uv run python -m pipeline.marts)
+echo   publicacao grava os Parquet em data/publicacao/ (uv run python -m pipeline.publicacao)
+echo   dashboard  abre o painel no navegador (uv run streamlit run src/dashboard/app.py)
 echo   ui         abre o explorador do banco no navegador (uv run python src/ui/ui.py)
 echo   mcp-duckdb registra o servidor MCP do DuckDB neste projeto (claude mcp add)
 goto fim
@@ -88,6 +92,14 @@ goto fim
 
 :marts
 uv run python -m pipeline.marts
+goto fim
+
+:publicacao
+uv run python -m pipeline.publicacao
+goto fim
+
+:dashboard
+uv run streamlit run src/dashboard/app.py
 goto fim
 
 :ui
