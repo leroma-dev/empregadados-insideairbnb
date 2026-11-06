@@ -71,8 +71,10 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.snapshot == "AAAA-MM-DD":
-        print("Defina a data do snapshot (SNAPSHOT no script ou --snapshot). "
-              "Veja as datas em https://insideairbnb.com/get-the-data/")
+        print(
+            "Defina a data do snapshot (SNAPSHOT no script ou --snapshot). "
+            "Veja as datas em https://insideairbnb.com/get-the-data/"
+        )
         return 1
 
     RAW_DIR.mkdir(parents=True, exist_ok=True)

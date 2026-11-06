@@ -211,3 +211,7 @@ pyrightconfig.json
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,python
 
 .claude/settings.local.json
+
+# Banco DuckDB gerado pela ingestao
+data/insideairbnb.duckdb
+data/insideairbnb.duckdb.wal

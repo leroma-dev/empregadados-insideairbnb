@@ -1,6 +1,7 @@
 {
     "python-envs.defaultEnvManager": "ms-python.python:pyenv",
     "python.pythonPath": ".venv/bin/python",
+    "autopep8.interpreter": [".venv/bin/python"],
     "code-runner.executorMap": {
         "python": ".venv/bin/python"
     },
