@@ -14,6 +14,9 @@ ajuda() {
     echo "  format     ruff format"
     echo "  test       pytest com coverage"
     echo "  venv       mostra como ativar o .venv neste terminal"
+    echo "  ingestao   grava as tabelas raw no banco (uv run python -m pipeline.ingestao)"
+    echo "  ui         abre o explorador do banco no navegador (uv run python src/ui/ui.py)"
+    echo "  mcp-duckdb registra o servidor MCP do DuckDB neste projeto (claude mcp add)"
 }
 
 case "${1:-}" in
@@ -61,6 +64,16 @@ case "${1:-}" in
             echo "Abrindo um novo bash com o .venv ativo (use 'exit' para voltar)."
             exec bash --rcfile <(printf '%s\n' '[ -f ~/.bashrc ] && . ~/.bashrc' ". \"$RAIZ/.venv/bin/activate\"") -i
         fi
+        ;;
+    ingestao)
+        uv run python -m pipeline.ingestao
+        ;;
+    ui)
+        uv run python src/ui/ui.py
+        ;;
+    mcp-duckdb)
+        # Caminho do banco deste projeto; o exemplo original citava olist.duckdb.
+        claude mcp add --scope project duckdb -- uvx mcp-server-motherduck --db-path data/insideairbnb.duckdb
         ;;
     *)
         echo "Comando desconhecido: $1"

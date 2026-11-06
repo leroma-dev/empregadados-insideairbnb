@@ -11,6 +11,9 @@ if /I "%~1"=="lint" goto lint
 if /I "%~1"=="format" goto format
 if /I "%~1"=="test" goto test
 if /I "%~1"=="venv" goto venv
+if /I "%~1"=="ingestao" goto ingestao
+if /I "%~1"=="ui" goto ui
+if /I "%~1"=="mcp-duckdb" goto mcp_duckdb
 echo Comando desconhecido: %~1
 goto ajuda
 
@@ -24,6 +27,9 @@ echo   lint       ruff check
 echo   format     ruff format
 echo   test       pytest com coverage
 echo   venv       mostra como ativar o .venv neste terminal
+echo   ingestao   grava as tabelas raw no banco (uv run python -m pipeline.ingestao)
+echo   ui         abre o explorador do banco no navegador (uv run python src/ui/ui.py)
+echo   mcp-duckdb registra o servidor MCP do DuckDB neste projeto (claude mcp add)
 goto fim
 
 :init
@@ -66,6 +72,19 @@ rem Um script nao ativa o cmd que o chamou: abre um novo cmd com o .venv ativo.
 rem 'exit' nesse cmd volta ao terminal anterior.
 echo Abrindo um novo cmd com o .venv ativo (use exit para voltar).
 cmd /k ".venv\Scripts\activate.bat"
+goto fim
+
+:ingestao
+uv run python -m pipeline.ingestao
+goto fim
+
+:ui
+uv run python src/ui/ui.py
+goto fim
+
+:mcp_duckdb
+rem Caminho do banco deste projeto; o exemplo original citava olist.duckdb.
+claude mcp add --scope project duckdb -- uvx mcp-server-motherduck --db-path data/insideairbnb.duckdb
 goto fim
 
 :fim
