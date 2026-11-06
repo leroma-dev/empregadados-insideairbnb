@@ -2,10 +2,17 @@
 
 import json
 import sys
+from pathlib import Path
 
-import streamlit as st
+# Streamlit (local e Community Cloud) só põe src/dashboard no caminho de busca.
+# Esta linha põe src/ também, para que `import dashboard` funcione nos dois casos.
+_SRC = Path(__file__).resolve().parents[1]
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
-from dashboard.dados import PASTA_PUBLICACAO, ErroOrigem, origem
+import streamlit as st  # noqa: E402
+
+from dashboard.dados import PASTA_PUBLICACAO, ErroOrigem, origem  # noqa: E402
 from dashboard.paginas import anfitriao, investidor
 
 if hasattr(sys.stdout, "reconfigure"):
