@@ -4,6 +4,12 @@
       "type": "stdio",
       "command": "uvx",
       "args": [
+        "--with",
+        "duckdb==2.0.0",
+        "--with",
+        "mcp<2",
+        "--from",
+        "mcp-server-motherduck==0.4.0",
         "mcp-server-motherduck",
         "--db-path",
         "data/insideairbnb.duckdb"
