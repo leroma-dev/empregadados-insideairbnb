@@ -17,6 +17,7 @@ if /I "%~1"=="marts" goto marts
 if /I "%~1"=="publicacao" goto publicacao
 if /I "%~1"=="dashboard" goto dashboard
 if /I "%~1"=="ui" goto ui
+if /I "%~1"=="docs" goto docs
 if /I "%~1"=="mcp-duckdb" goto mcp_duckdb
 echo Comando desconhecido: %~1
 goto ajuda
@@ -37,6 +38,7 @@ echo   marts      grava as tabelas marts no banco (uv run python -m pipeline.mar
 echo   publicacao grava os Parquet em data/publicacao/ (uv run python -m pipeline.publicacao)
 echo   dashboard  abre o painel no navegador (uv run streamlit run src/dashboard/app.py)
 echo   ui         abre o explorador do banco no navegador (uv run python src/ui/ui.py)
+echo   docs       abre a documentacao do MkDocs no navegador (uv run mkdocs serve)
 echo   mcp-duckdb registra o servidor MCP do DuckDB neste projeto (claude mcp add)
 goto fim
 
@@ -104,6 +106,10 @@ goto fim
 
 :ui
 uv run python src/ui/ui.py
+goto fim
+
+:docs
+uv run mkdocs serve
 goto fim
 
 :mcp_duckdb

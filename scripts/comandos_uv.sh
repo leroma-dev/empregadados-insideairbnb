@@ -20,6 +20,7 @@ ajuda() {
     echo "  publicacao grava os Parquet em data/publicacao/ (uv run python -m pipeline.publicacao)"
     echo "  dashboard  abre o painel no navegador (uv run streamlit run src/dashboard/app.py)"
     echo "  ui         abre o explorador do banco no navegador (uv run python src/ui/ui.py)"
+    echo "  docs       abre a documentacao do MkDocs no navegador (uv run mkdocs serve)"
     echo "  mcp-duckdb registra o servidor MCP do DuckDB neste projeto (claude mcp add)"
 }
 
@@ -86,6 +87,9 @@ case "${1:-}" in
         ;;
     ui)
         uv run python src/ui/ui.py
+        ;;
+    docs)
+        uv run mkdocs serve
         ;;
     mcp-duckdb)
         # Caminho do banco deste projeto; o exemplo original citava olist.duckdb.

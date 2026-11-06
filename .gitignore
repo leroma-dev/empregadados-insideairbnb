@@ -214,3 +214,6 @@ pyrightconfig.json
 # Banco DuckDB gerado pela ingestao
 data/insideairbnb.duckdb
 data/insideairbnb.duckdb.wal
+
+# Site gerado pelo MkDocs
+site/
