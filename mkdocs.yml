@@ -1,0 +1,15 @@
+site_name: Empregados InsideAirbnb
+site_description: Pipeline e dashboard de indicadores do Inside Airbnb
+docs_dir: documentacao
+site_dir: site
+
+theme:
+  name: mkdocs
+  locale: pt_BR
+nav:
+  - Início: index.md
+  - Instalação e comandos: instalacao.md
+  - Pipeline: pipeline.md
+  - Dados: dados.md
+  - Indicadores: indicadores.md
+  - Dashboard: dashboard.md
