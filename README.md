@@ -51,3 +51,33 @@ Os arquivos são salvos em `data/raw/`.
 ├── .gitignore
 └── README.md
 ```
+
+## Relatório de testes
+
+Gerado com `scripts/comandos_uv.sh test` (pytest com cobertura sobre `src/`).
+
+**Resultado: 97 testes passaram, 0 falharam** (tempo: cerca de 9 s).
+
+Cobertura por módulo:
+
+| Módulo | Cobertura | Linhas sem teste |
+|---|---|---|
+| `src/pipeline/db.py` | 100% | – |
+| `src/pipeline/publicacao.py` | 98% | 82 |
+| `src/pipeline/marts.py` | 96% | 77, 94, 169 |
+| `src/pipeline/ingestao.py` | 95% | 129, 152, 193 |
+| `src/pipeline/staging.py` | 94% | 328-332, 342, 353 |
+| `src/dashboard/preparo.py` | 93% | 21, 51 |
+| `src/dashboard/dados_ui.py` | 83% | 12 |
+| `src/dashboard/dados.py` | 81% | 52, 57, 78-79, 90-96 |
+| `src/dashboard/app.py` | 70% | 11, 31, 40, 53-67, 71 |
+| `src/dashboard/graficos.py` | 39% | 13-14, 19-27 |
+| `src/dashboard/paginas/anfitriao.py` | 25% | 11-30 |
+| `src/dashboard/paginas/investidor.py` | 14% | 11-50 |
+| `src/ui/ui.py` | 84% | 66-67, 76-78, 97 |
+| **Total** | **82%** | 102 de 568 linhas |
+
+O que está fora da cobertura: as páginas do Streamlit (`paginas/`, `graficos.py`)
+e a parte de desenho de `app.py` não têm teste de renderização. Eles são
+conferidos pelas funções de preparação, que têm teste, e por checagem manual
+do app.
