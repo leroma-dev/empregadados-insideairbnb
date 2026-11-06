@@ -2,7 +2,7 @@
 Ingestão raw: os quatro arquivos de data/raw/ entram no DuckDB, schema raw,
 exatamente como chegaram.
 
-STATUS: somente especificação. Código ainda não escrito.
+STATUS: implementação em andamento conforme a spec abaixo.
 
 MAPA ARQUIVO -> TABELA
 
@@ -77,3 +77,117 @@ SEPARAÇÃO
 Este módulo não sobe servidor, não abre navegador e não depende da extensão
 ui do DuckDB. Não importa src/ui/ui.py, e src/ui/ui.py não importa este módulo.
 """
+
+import sys
+from collections.abc import Iterator
+from pathlib import Path
+
+import duckdb
+import pandas as pd
+
+from pipeline.db import anexar, conectar, gravar
+
+RAW_DIR = Path(__file__).resolve().parents[2] / "data" / "raw"
+
+# Linhas por bloco de leitura. Ler reviews.csv.gz inteiro como texto estourou a memória
+# (8 GB, OOM). Cada bloco é lido com as mesmas opções de ler_arquivo; o resultado é igual.
+TAMANHO_BLOCO = 100_000
+
+MAPA: dict[str, str] = {
+    "listings.csv.gz": "raw.anuncios",
+    "calendar.csv.gz": "raw.calendario",
+    "reviews.csv.gz": "raw.avaliacoes",
+    "neighbourhoods.csv": "raw.bairros",
+}
+
+
+def ler_arquivo(caminho: Path) -> pd.DataFrame:
+    """Lê um arquivo bruto como texto, sem conversão e sem trocar textos por nulo."""
+    return pd.read_csv(
+        caminho,
+        encoding="utf-8",
+        dtype=str,
+        keep_default_na=False,
+        na_values=[""],
+    )
+
+
+def ler_em_blocos(caminho: Path, linhas: int) -> Iterator[pd.DataFrame]:
+    """Mesmas opções de ler_arquivo, em blocos de no máximo `linhas` linhas."""
+    return pd.read_csv(
+        caminho,
+        encoding="utf-8",
+        dtype=str,
+        keep_default_na=False,
+        na_values=[""],
+        chunksize=linhas,
+    )
+
+
+def colunas_vazias(caminho: Path) -> pd.DataFrame:
+    """Só o cabeçalho, para criar a tabela quando o arquivo não tem linhas de dados."""
+    return pd.read_csv(caminho, encoding="utf-8", dtype=str, nrows=0)
+
+
+def arquivos_faltantes(pasta: Path) -> list[str]:
+    """Nomes de MAPA que não existem em pasta, na ordem de MAPA."""
+    return [nome for nome in MAPA if not (pasta / nome).exists()]
+
+
+def formatar_contagem(n: int) -> str:
+    """Milhar separado por ponto: 1550922 -> '1.550.922'."""
+    return f"{n:,}".replace(",", ".")
+
+
+def ingerir(con, pasta: Path) -> list[tuple[str, int]]:
+    """Grava as tabelas de MAPA numa única transação; qualquer falha desfaz tudo."""
+    con.begin()
+    try:
+        resultado = []
+        for nome, tabela in MAPA.items():
+            caminho = pasta / nome
+            blocos = ler_em_blocos(caminho, TAMANHO_BLOCO)
+            primeiro = next(blocos, None)
+            if primeiro is None:
+                gravar(con, tabela, colunas_vazias(caminho))
+            else:
+                gravar(con, tabela, primeiro)
+                for bloco in blocos:
+                    anexar(con, tabela, bloco)
+            resultado.append(
+                (tabela, con.execute(f"SELECT count(*) FROM {tabela}").fetchall()[0][0])
+            )
+        con.commit()
+    except Exception:
+        con.rollback()
+        raise
+    return resultado
+
+
+def main(pasta: Path = RAW_DIR, conectar_fn=conectar) -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
+    faltantes = arquivos_faltantes(pasta)
+    if faltantes:
+        print(f"Faltam arquivos em {pasta}:")
+        for nome in faltantes:
+            print(f"  - {nome}")
+        return 1
+    try:
+        con = conectar_fn()
+    except duckdb.Error as erro:
+        print(f"Não foi possível abrir o banco: {erro}")
+        print("Se o explorador (ui) estiver aberto, feche-o e rode a ingestão de novo.")
+        return 1
+    try:
+        linhas = ingerir(con, pasta)
+    finally:
+        con.close()
+    for tabela, n in linhas:
+        print(f"{tabela:<22} {formatar_contagem(n)}")
+    total = sum(n for _, n in linhas)
+    print(f"{'total':<22} {formatar_contagem(total)}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,7 +1,7 @@
 """
 Acesso ao banco DuckDB do projeto: data/insideairbnb.duckdb.
 
-STATUS: somente especificação. Código ainda não escrito.
+STATUS: implementação em andamento conforme a spec abaixo.
 
 REGRAS
 
@@ -33,3 +33,45 @@ CRITÉRIOS DE ACEITE
   projeto, não na pasta corrente.
 - gravar() com DataFrame de 3 linhas devolve 3; rodar de novo continua devolvendo 3.
 """
+
+from pathlib import Path
+
+import duckdb
+import pandas as pd
+
+
+def caminho_banco() -> Path:
+    """Caminho fixo do banco: data/ na raiz do projeto, qualquer que seja a pasta corrente."""
+    return Path(__file__).resolve().parents[2] / "data" / "insideairbnb.duckdb"
+
+
+def conectar() -> duckdb.DuckDBPyConnection:
+    """Abre o banco, criando pasta, arquivo e schema raw se faltarem."""
+    caminho = caminho_banco()
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    con = duckdb.connect(str(caminho))
+    # Padrão do DuckDB é ~80% da RAM (6,2 GiB aqui). Com 2 GB ele grava em disco em vez de crescer
+    # até o kernel matar o VS Code por falta de memória.
+    con.execute("SET memory_limit = '2GB'").fetchall()
+    con.execute("CREATE SCHEMA IF NOT EXISTS raw")
+    return con
+
+
+def gravar(con: duckdb.DuckDBPyConnection, nome_qualificado: str, df: pd.DataFrame) -> int:
+    """Recria a tabela a partir do DataFrame e devolve a contagem consultada no banco.
+
+    nome_qualificado vem só de constantes internas (ex.: raw.anuncios), nunca de entrada externa.
+    """
+    con.register("_df", df)
+    # fetchall em todo execute: sem isso o resultado fica aberto e a próxima
+    # chamada na conexão falha.
+    con.execute(f"CREATE OR REPLACE TABLE {nome_qualificado} AS SELECT * FROM _df").fetchall()
+    con.unregister("_df")
+    return con.execute(f"SELECT count(*) FROM {nome_qualificado}").fetchall()[0][0]
+
+
+def anexar(con: duckdb.DuckDBPyConnection, nome_qualificado: str, df: pd.DataFrame) -> None:
+    """Acrescenta um bloco à tabela, que já foi criada por gravar() na mesma transação."""
+    con.register("_df", df)
+    con.execute(f"INSERT INTO {nome_qualificado} SELECT * FROM _df").fetchall()
+    con.unregister("_df")

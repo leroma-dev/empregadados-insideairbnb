@@ -2,7 +2,7 @@
 Explorador do banco pelo navegador: abre data/insideairbnb.duckdb na
 interface web da extensão ui do DuckDB.
 
-STATUS: somente especificação. Código ainda não escrito.
+STATUS: implementação em andamento conforme a spec abaixo.
 
 Uso previsto: uv run python src/ui/ui.py
 
@@ -41,3 +41,57 @@ CRITÉRIOS DE ACEITE
 - Renomear data/insideairbnb.duckdb faz o script parar com a mensagem, sem
   criar arquivo novo.
 """
+
+import sys
+import time
+from collections.abc import Callable
+from pathlib import Path
+
+import duckdb
+
+BANCO = Path(__file__).resolve().parents[2] / "data" / "insideairbnb.duckdb"
+PORTA = 4213
+
+
+def verificar_banco(caminho: Path) -> None:
+    """Sai com código 1 se o banco não existir. Não cria arquivo."""
+    if not caminho.exists():
+        print(f"Banco não encontrado: {caminho}")
+        print("Rode a ingestão antes: scripts/comandos_uv.sh ingestao")
+        sys.exit(1)
+
+
+def _esperar_para_sempre() -> None:
+    # Laço com sleep: Event().wait() sem tempo limite pode não responder ao Ctrl+C no Windows.
+    while True:
+        time.sleep(1)
+
+
+def main(caminho: Path = BANCO, esperar: Callable[[], None] | None = None) -> int:
+    """Sobe o explorador até Ctrl+C. Devolve 0 no Ctrl+C e 1 em erro do DuckDB."""
+    sys.stdout.reconfigure(encoding="utf-8")
+    verificar_banco(caminho)
+    try:
+        con = duckdb.connect(str(caminho))
+    except duckdb.Error as erro:
+        print(f"Não foi possível abrir o banco: {erro}")
+        return 1
+    try:
+        con.execute("INSTALL ui; LOAD ui;")
+        # start_ui() sobe o servidor em localhost:4213 (porta padrão) e abre o navegador.
+        con.execute("CALL start_ui()")
+        print(f"Explorador em http://localhost:{PORTA}")
+        print("Ctrl+C para encerrar")
+        (esperar or _esperar_para_sempre)()
+    except KeyboardInterrupt:
+        pass
+    except duckdb.Error as erro:
+        print(f"Falha ao subir o explorador: {erro}")
+        return 1
+    finally:
+        con.close()  # isso também encerra o servidor
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
