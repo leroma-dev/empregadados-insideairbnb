@@ -16,6 +16,7 @@ ajuda() {
     echo "  venv       mostra como ativar o .venv neste terminal"
     echo "  ingestao   grava as tabelas raw no banco (uv run python -m pipeline.ingestao)"
     echo "  staging    grava as tabelas staging no banco (uv run python -m pipeline.staging)"
+    echo "  marts      grava as tabelas marts no banco (uv run python -m pipeline.marts)"
     echo "  ui         abre o explorador do banco no navegador (uv run python src/ui/ui.py)"
     echo "  mcp-duckdb registra o servidor MCP do DuckDB neste projeto (claude mcp add)"
 }
@@ -71,6 +72,9 @@ case "${1:-}" in
         ;;
     staging)
         uv run python -m pipeline.staging
+        ;;
+    marts)
+        uv run python -m pipeline.marts
         ;;
     ui)
         uv run python src/ui/ui.py
