@@ -391,10 +391,39 @@ Rodar as consultas dos critérios CA1 a CA11 no banco, em modo somente leitura, 
 
 Expected: todos batem. Qualquer divergência vira correção no código antes de dar a etapa como concluída.
 
+## Alterações após a implementação
+
+Registro do que foi feito depois do plano original. O diário completo está em `.superpowers/sdd/07_plano_staging/progress.md`.
+
+**Correção R10 (revisão final):** valores que passam na validação por expressão regular mas estouram no `CAST` (data `2024-02-30`, inteiro acima de 2^31, preço `$1,000,000,000.00`) levantavam `duckdb.Error` cru, sem tabela nem coluna. Agora `converter` faz uma sonda `SELECT count(c) FROM (SELECT <CAST> AS c FROM raw.<t>)` por coluna tipada, antes de qualquer `CREATE`, e converte o erro em `ErroConversao(tabela, coluna, exemplo)`. O exemplo vem do valor citado na mensagem do DuckDB. A sonda usa `count(c)` e não `count(*)`, porque o `count(*)` deixa o DuckDB podar o `CAST`. Três testes parametrizados cobrem os casos.
+
+**Testes adicionados depois:**
+- Rollback no segundo `CREATE`: com uma view `staging.calendario` existente, o `CREATE` de `calendario` falha depois que `anuncios` já foi criada na mesma transação, e a transação desfaz `anuncios` (R4).
+- Chave composta com NULL: `remover_repetidas` sobre (`listing_id`, `date`) conta a linha repetida e não trata linhas com chave nula como conflito (R8).
+
+**Estilo:** `ruff check` e `ruff format` nos dois arquivos novos; sem alteração de comportamento. Testes: 24 passando.
+
+**Execução real (Task 8):** `pipeline.staging` terminou com código 0. Contagens: `anuncios` 48.247, `calendario` 17.610.155, `avaliacoes` 1.461.658, `bairros` 160; total 19.120.220; zero duplicatas. Conferidos: CA3 (chaves únicas), CA5 (tipos), CA6 (nulos iguais por coluna), CA7 (`price` soma 37.997.282,30 igual à de `raw`), CA11 (órfãos = 0) e CA12 (saída idêntica em duas reexecuções). O bloqueio da Task 8 foi o lock do servidor MCP do DuckDB, que já não roda.
+
+**Rulings tomados pela execução:**
+- R1: sem commits; revisões pelo diff do diretório de trabalho.
+- R2: teste de preço compara com `Decimal`.
+- R3: `converter` só valida; `transformar` monta as linhas.
+- R4: testes e checagens direto pelo `.venv`.
+- R5: `transformar` chama `remover_repetidas` por tabela antes de criar.
+- R6: `DISTINCT` trata NULL como igual.
+- R7: `bairros.neighbourhood_group` vazio fica como texto; a ingestão já grava NULL.
+- R8: chave com alguma coluna nula fica fora da checagem de conflito.
+- R9: `main` conecta antes de checar as tabelas raw; pode criar um `.duckdb` vazio, sem tabela de staging.
+- R10: correção do `CAST` descrita acima.
+- R11: sonda com `count(c)` em vez de `count(*)`.
+
+**Pendências aceitas:** rollback do segundo `CREATE` (agora coberto pelo teste acima); `ErroChaveConflitante.tabela` traz o nome raw; `DISTINCT` sobre `calendario` roda três vezes (lento, correto); a checagem de chave é em `VARCHAR`, não nos valores convertidos.
+
 ## Checklist de aceite (plano)
 
-- [ ] Task 1 a Task 6: testes de `tests/test_staging.py` PASS.
+- [x] Task 1 a Task 6: testes de `tests/test_staging.py` PASS (24 testes).
 - [ ] Cobertura de `src/pipeline/staging.py` reportada por `scripts/comandos_uv.sh test`.
-- [ ] Task 7: `staging` aparece na ajuda dos dois scripts.
-- [ ] Task 8: execução real bate com as contagens da spec; critérios CA1 a CA11 conferidos.
-- [ ] Docstring do `staging.py` tem o motivo de cada regra (Entregáveis da spec).
+- [x] Task 7: `staging` aparece na ajuda do `.sh`; `.bat` conferido só por leitura.
+- [x] Task 8: execução real bate com as contagens da spec; critérios conferidos (ver Alterações após a implementação).
+- [x] Docstring do `staging.py` tem o motivo de cada regra (Entregáveis da spec).
