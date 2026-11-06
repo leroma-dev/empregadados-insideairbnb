@@ -6,7 +6,6 @@ data/raw/*
 
 # Dados intermediários gerados pelo pipeline
 data/staging/
-data/mart/
 
 # Sistema 
 .DS_Store
