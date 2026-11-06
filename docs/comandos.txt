@@ -1,0 +1,4 @@
+Download data para parser
+python scripts/download_data.py --country brazil --region rj --city rio-de-janeiro --snapshot 2026-09-22
+
+
