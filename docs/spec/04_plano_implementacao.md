@@ -17,6 +17,7 @@
 - Banco: `data/insideairbnb.duckdb`, schema `raw`, tabelas `raw.anuncios`, `raw.calendario`, `raw.avaliacoes`, `raw.bairros`.
 - Leitura com `encoding="utf-8"`, `dtype=str`, `keep_default_na=False`, `na_values=[""]`. Nenhuma conversão de tipo, linha descartada, deduplicação ou valor corrigido.
 - Escrita da ingestão em uma única transação; falha no meio deixa o banco como estava.
+- Memória: `conectar()` define `memory_limit = '2GB'` no DuckDB, e a leitura é em blocos de 100.000 linhas (ver a seção "Alterações anti-travamento").
 - `sys.stdout.reconfigure(encoding="utf-8")` em todo ponto de entrada.
 - Código em `src/` com subpastas; testes em `tests/`; dados em `data/`.
 - Comandos uv são rodados pelo desenvolvedor, um por vez, via `scripts\comandos_uv.bat <comando>` (Windows) ou `scripts/comandos_uv.sh <comando>` (Linux). Nenhum comando uv roda automaticamente.
@@ -137,12 +138,17 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[1]
 
+
 def test_caminho_banco_independe_da_pasta(tmp_path):
     saida = subprocess.run(
         [sys.executable, "-c", "from pipeline.db import caminho_banco; print(caminho_banco())"],
-        cwd=tmp_path, capture_output=True, text=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout.strip()
     assert Path(saida) == RAIZ / "data" / "insideairbnb.duckdb"
+
 
 def test_importar_nao_cria_banco(tmp_path):
     alvo = RAIZ / "data" / "insideairbnb.duckdb"
@@ -189,25 +195,32 @@ Usar `monkeypatch.setattr(db, "caminho_banco", lambda: tmp_path / "t.duckdb")` e
 def test_conectar_cria_arquivo_e_schema_raw(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "caminho_banco", lambda: tmp_path / "t.duckdb")
     con = db.conectar()
-    schemas = [r[0] for r in con.execute("select schema_name from information_schema.schemata").fetchall()]
+    schemas = [
+        r[0] for r in con.execute("select schema_name from information_schema.schemata").fetchall()
+    ]
     con.close()
     assert (tmp_path / "t.duckdb").exists()
     assert "raw" in schemas
+
 
 def test_gravar_devolve_contagem_do_banco(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "caminho_banco", lambda: tmp_path / "t.duckdb")
     con = db.conectar()
     df = pd.DataFrame({"a": ["1", "2", "3"]})
     assert db.gravar(con, "raw.teste", df) == 3
-    assert db.gravar(con, "raw.teste", df) == 3   # rodar de novo não acumula
+    assert db.gravar(con, "raw.teste", df) == 3  # rodar de novo não acumula
     con.close()
+
 
 def test_gravar_preserva_cep_com_zero_e_nulo(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "caminho_banco", lambda: tmp_path / "t.duckdb")
     con = db.conectar()
     df = pd.DataFrame({"cep": ["01310-100", None], "na": ["NA", "x"]})
     db.gravar(con, "raw.teste", df)
-    assert con.execute("select cep from raw.teste order by na").fetchall() == [("01310-100",), (None,)]
+    assert con.execute("select cep from raw.teste order by na").fetchall() == [
+        ("01310-100",),
+        (None,),
+    ]
     assert con.execute("select na from raw.teste order by na").fetchall() == [("NA",), ("x",)]
     con.close()
 ```
@@ -253,15 +266,18 @@ def test_cep_com_zero_fica_texto(tmp_path):
         f.write("cep\n01310-100\n")
     assert ingestao.ler_arquivo(p)["cep"].tolist() == ["01310-100"]
 
+
 def test_textos_que_pandas_trata_como_nulo_ficam_texto(tmp_path):
     p = tmp_path / "a.csv"
     p.write_text("v\nNA\nnull\nN/A\nNaN\n", encoding="utf-8")
     assert ingestao.ler_arquivo(p)["v"].tolist() == ["NA", "null", "N/A", "NaN"]
 
+
 def test_campo_vazio_e_aspas_vazias_viram_nulo(tmp_path):
     p = tmp_path / "a.csv"
     p.write_text('v\n\n""\nx\n', encoding="utf-8")
     assert ingestao.ler_arquivo(p)["v"].isna().tolist() == [True, True, False]
+
 
 def test_utf8_com_acento_e_virgula_entre_aspas(tmp_path):
     p = tmp_path / "a.csv"
@@ -269,6 +285,7 @@ def test_utf8_com_acento_e_virgula_entre_aspas(tmp_path):
     df = ingestao.ler_arquivo(p)
     assert df.loc[0, "bairro"] == "São Conrado"
     assert df.loc[0, "end"] == "Rua A, 10"
+
 
 def test_todas_as_colunas_sao_texto(tmp_path):
     p = tmp_path / "a.csv"
@@ -310,13 +327,18 @@ Expected: os cinco testes PASS.
 def test_faltantes_lista_os_que_faltam(tmp_path):
     (tmp_path / "listings.csv.gz").write_bytes(b"")
     assert ingestao.arquivos_faltantes(tmp_path) == [
-        "calendar.csv.gz", "reviews.csv.gz", "neighbourhoods.csv",
+        "calendar.csv.gz",
+        "reviews.csv.gz",
+        "neighbourhoods.csv",
     ]
+
 
 def test_main_para_antes_de_conectar(tmp_path, capsys):
     chamadas = []
+
     def fake_conectar():
         chamadas.append(1)
+
     assert ingestao.main(pasta=tmp_path, conectar_fn=fake_conectar) == 1
     assert chamadas == []
     saida = capsys.readouterr().out
@@ -358,13 +380,15 @@ def test_formata_milhar_com_ponto():
     assert ingestao.formatar_contagem(1550922) == "1.550.922"
     assert ingestao.formatar_contagem(999) == "999"
 
+
 def test_saida_uma_linha_por_tabela_e_total(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(db, "caminho_banco", lambda: tmp_path / "t.duckdb")
-    _criar_quatro_arquivos_pequenos(tmp_path / "raw")   # helper do arquivo de testes
+    _criar_quatro_arquivos_pequenos(tmp_path / "raw")  # helper do arquivo de testes
     assert ingestao.main(pasta=tmp_path / "raw") == 0
     linhas = capsys.readouterr().out.strip().splitlines()
     assert len(linhas) == 5
     assert linhas[-1].startswith("total")
+
 
 def test_duas_execucoes_imprimem_o_mesmo(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(db, "caminho_banco", lambda: tmp_path / "t.duckdb")
@@ -374,6 +398,7 @@ def test_duas_execucoes_imprimem_o_mesmo(tmp_path, monkeypatch, capsys):
     ingestao.main(pasta=tmp_path / "raw")
     assert capsys.readouterr().out == primeira
 
+
 def test_falha_no_meio_nao_deixa_parcial(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "caminho_banco", lambda: tmp_path / "t.duckdb")
     _criar_quatro_arquivos_pequenos(tmp_path / "raw")
@@ -381,13 +406,17 @@ def test_falha_no_meio_nao_deixa_parcial(tmp_path, monkeypatch):
     with pytest.raises(Exception):
         ingestao.ingerir(db.conectar(), tmp_path / "raw")
     con = duckdb.connect(str(tmp_path / "t.duckdb"))
-    tabelas = con.execute("select table_name from information_schema.tables where table_schema='raw'").fetchall()
+    tabelas = con.execute(
+        "select table_name from information_schema.tables where table_schema='raw'"
+    ).fetchall()
     assert tabelas == []
     con.close()
+
 
 def test_banco_em_uso_falha_com_mensagem_e_codigo_1(tmp_path, capsys):
     def conectar_em_uso():
         raise duckdb.Error("Could not set lock on file")
+
     _criar_quatro_arquivos_pequenos(tmp_path / "raw")
     assert ingestao.main(pasta=tmp_path / "raw", conectar_fn=conectar_em_uso) == 1
     assert "ui" in capsys.readouterr().out
@@ -467,6 +496,7 @@ def test_sem_banco_encerra_sem_criar_arquivo(tmp_path, capsys):
     assert not alvo.exists()
     assert "ingest" in capsys.readouterr().out.lower()
 
+
 def test_ui_nao_importa_pipeline():
     arvore = ast.parse(Path(ui.__file__).read_text(encoding="utf-8"))
     importados = {n.module for n in ast.walk(arvore) if isinstance(n, ast.ImportFrom)}
@@ -518,32 +548,58 @@ Fake de `duckdb.connect` via `monkeypatch` que registra cada `execute` e o `clos
 
 ```python
 def test_sequencia_de_chamadas(tmp_path, monkeypatch):
-    banco = tmp_path / "x.duckdb"; banco.write_bytes(b"")
+    banco = tmp_path / "x.duckdb"
+    banco.write_bytes(b"")
     chamadas = []
+
     class Fake:
-        def execute(self, sql): chamadas.append(sql)
-        def close(self): chamadas.append("close")
+        def execute(self, sql):
+            chamadas.append(sql)
+
+        def close(self):
+            chamadas.append("close")
+
     monkeypatch.setattr(ui.duckdb, "connect", lambda p: Fake())
-    def ctrl_c(): raise KeyboardInterrupt
+
+    def ctrl_c():
+        raise KeyboardInterrupt
+
     assert ui.main(caminho=banco, esperar=ctrl_c) == 0
     assert chamadas == ["INSTALL ui; LOAD ui;", "CALL start_ui()", "close"]
 
+
 def test_ctrl_c_fecha_e_sai_sem_excecao(tmp_path, monkeypatch):
-    banco = tmp_path / "x.duckdb"; banco.write_bytes(b"")
+    banco = tmp_path / "x.duckdb"
+    banco.write_bytes(b"")
     fechou = []
+
     class Fake:
-        def execute(self, sql): pass
-        def close(self): fechou.append(True)
+        def execute(self, sql):
+            pass
+
+        def close(self):
+            fechou.append(True)
+
     monkeypatch.setattr(ui.duckdb, "connect", lambda p: Fake())
-    def ctrl_c(): raise KeyboardInterrupt
+
+    def ctrl_c():
+        raise KeyboardInterrupt
+
     assert ui.main(caminho=banco, esperar=ctrl_c) == 0
     assert fechou == [True]
 
+
 def test_erro_do_duckdb_devolve_1(tmp_path, monkeypatch, capsys):
-    banco = tmp_path / "x.duckdb"; banco.write_bytes(b"")
+    banco = tmp_path / "x.duckdb"
+    banco.write_bytes(b"")
+
     class Fake:
-        def execute(self, sql): raise duckdb.Error("porta ocupada")
-        def close(self): pass
+        def execute(self, sql):
+            raise duckdb.Error("porta ocupada")
+
+        def close(self):
+            pass
+
     monkeypatch.setattr(ui.duckdb, "connect", lambda p: Fake())
     assert ui.main(caminho=banco, esperar=lambda: None) == 1
     assert "porta ocupada" in capsys.readouterr().out
@@ -636,6 +692,44 @@ Run: `scripts\comandos_uv.bat test`
 Expected: todos PASS; relatório de cobertura no terminal com o percentual de `src/`. Registrar o percentual; limite mínimo é decisão posterior.
 
 ---
+
+## Alterações anti-travamento (aplicadas após a primeira execução real)
+
+Motivo: a primeira execução real da ingestão, com `reviews.csv.gz` (162 MB
+comprimido) lido inteiro como texto, estourou a memória de uma máquina de 8 GB.
+O kernel matou o VS Code, e a ingestão foi encerrada. As alterações abaixo
+mantêm a abordagem A aprovada (pandas com `dtype=str`) e limitam o uso de memória.
+
+1. **Limite de memória do DuckDB** (`src/pipeline/db.py`, `conectar()`):
+   `SET memory_limit = '2GB'` logo após a conexão. Motivo: o padrão do DuckDB é
+   cerca de 80% da RAM (6,2 GiB aqui). Teste: `test_conectar_limita_memoria_do_duckdb`
+   (o limite fica entre 1,0 e 2,0 GiB).
+2. **Leitura em blocos** (`src/pipeline/ingestao.py`): `TAMANHO_BLOCO = 100_000`.
+   `ler_em_blocos(caminho, linhas)` usa as mesmas opções de `ler_arquivo`
+   com `chunksize`. Teste: `test_blocos_dao_mesmo_resultado_que_leitura_inteira`.
+3. **Primeiro bloco com `gravar()`, demais com `anexar()`** (`db.py`): `anexar`
+   faz `INSERT INTO` a partir de um DataFrame. Tudo continua na mesma transação.
+4. **Arquivo sem linhas de dados**: `colunas_vazias(caminho)` lê só o cabeçalho e
+   cria a tabela com as colunas. Teste: `test_arquivo_so_com_cabecalho_cria_tabela_vazia`.
+5. **Contagem por tabela** vem de `SELECT count(*)` depois de gravar todos os blocos.
+
+Resultado da execução real, depois das alterações: terminou em cerca de 55 s com
+o VS Code aberto; o mínimo de memória disponível foi 1,07 GB; a reexecução deu
+saída idêntica; todas as colunas são VARCHAR. Contagens: `raw.anuncios` 48.247,
+`raw.calendario` 17.610.155, `raw.avaliacoes` 1.461.658, `raw.bairros` 160, total
+19.120.220.
+
+**Pendência:** o total esperado da primeira versão da spec era 1.550.922. A spec
+revisada não traz mais esse número. Confirmar qual vale antes de dar a Task 8 como
+concluída.
+
+**Procedimento para evitar travamento:**
+- Rodar `scripts/comandos_uv.sh ingestao` com o VS Code aberto é aceito, desde que
+  nenhum outro programa pesado esteja aberto durante a execução (cerca de 1 minuto).
+- Se a memória disponível cair muito, a ingestão deve ser interrompida, e não
+  reexecutada em seguida: uma reexecução imediata só repete o pico.
+- Opcional, não testado no ambiente de desenvolvimento: limitar o processo com
+  `systemd-run --user --scope -p MemoryMax=3G scripts/comandos_uv.sh ingestao`.
 
 ## Checklist de aceite (spec)
 

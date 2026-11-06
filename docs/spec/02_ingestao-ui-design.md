@@ -108,8 +108,14 @@ Um `.sh` equivalente para o bash do Linux pode ser adicionado depois.
   da localização do próprio arquivo `db.py`, nunca da pasta corrente.
   Cria o arquivo se faltar, e cria o schema `raw` se faltar.
 - Importar `db` não abre banco nem cria arquivo.
-- `gravar(nome_qualificado, df)` faz `CREATE OR REPLACE TABLE` e devolve a
+- `gravar(con, nome_qualificado, df)` faz `CREATE OR REPLACE TABLE` e devolve a
   contagem de linhas **consultada no banco**, não o `len(df)`.
+- `anexar(con, nome_qualificado, df)` acrescenta um bloco à tabela criada por
+  `gravar()` na mesma transação.
+- **Limite de memória:** `conectar()` define `memory_limit = '2GB'` no DuckDB.
+  Motivo: o padrão do DuckDB é cerca de 80% da RAM (6,2 GiB numa máquina de
+  8 GB). Sem o limite, a ingestão levou o kernel a matar o VS Code por falta
+  de memória. Com o limite, o DuckDB grava em disco em vez de crescer.
 
 ### Ingestão (segundo artefato)
 
@@ -118,13 +124,27 @@ Um `.sh` equivalente para o bash do Linux pode ser adicionado depois.
 2. Lê cada arquivo com `encoding="utf-8"`, `dtype=str`, `keep_default_na=False`
    e `na_values=[""]`. Os `.csv.gz` são lidos direto pelo pandas.
    Campo vazio vira nulo; `"NA"`, `"null"`, `"N/A"` continuam texto.
-3. Grava cada DataFrame com `gravar()`.
+   **Leitura em blocos:** cada arquivo é lido em blocos de `TAMANHO_BLOCO`
+   linhas (100.000), com as mesmas opções. Motivo: ler `reviews.csv.gz` (162 MB
+   comprimido) inteiro como texto estourou a memória. O resultado é igual ao da
+   leitura inteira; a diferença é só o pico de memória.
+3. Grava o primeiro bloco com `gravar()` e os demais com `anexar()`. Um arquivo
+   sem linhas de dados cria a tabela só com o cabeçalho, para a tabela existir
+   com as colunas.
 4. Imprime uma linha por tabela (nome qualificado e contagem vinda do banco,
    milhar com ponto) e uma linha final com o total.
 5. Reconfigura stdout para utf-8 no início.
 6. Termina e devolve o terminal.
 
 Sem conversão, renomeação, descarte, deduplicação ou correção de valor.
+Todos os blocos de todas as tabelas rodam numa única transação.
+
+**Uso de memória na execução real:** com o limite do DuckDB e a leitura em
+blocos, a ingestão completa rodou em cerca de 55 segundos com o VS Code aberto,
+com pelo menos 1 GB de memória disponível. Evite abrir outros programas pesados
+durante a ingestão. Para uma margem extra, pode-se limitar a memória do processo
+com `systemd-run --user --scope -p MemoryMax=3G` (não testado no ambiente de
+desenvolvimento).
 
 ### Explorador (terceiro artefato)
 
